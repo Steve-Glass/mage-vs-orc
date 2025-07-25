@@ -1,0 +1,162 @@
+name: Main Branch CI/CD
+
+# Trigger: Runs on every push to the main branch
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # Step 1: Checkout the repository code
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for version tagging
+    
+    # Step 2: Set up Python environment with version 3.11
+    - name: Set up Python environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    # Step 3: Install dependencies from requirements.txt
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    # Step 4: Run tests using pytest
+    - name: Run tests using pytest
+      run: |
+        python -m pytest test_mage_vs_orc.py -v --tb=short
+    
+    # Step 5: Build the app (create distribution packages)
+    - name: Build the app
+      run: |
+        # Create a simple distribution structure
+        mkdir -p dist
+        
+        # Copy the main game file
+        cp mage_vs_orc.py dist/
+        
+        # Create a standalone executable script
+        echo '#!/usr/bin/env python3' > dist/mage-vs-orc
+        cat mage_vs_orc.py >> dist/mage-vs-orc
+        chmod +x dist/mage-vs-orc
+        
+        # Create a ZIP archive for distribution
+        cd dist
+        zip -r mage-vs-orc-game.zip mage_vs_orc.py mage-vs-orc
+        cd ..
+        
+        # List the built artifacts
+        echo "Built artifacts:"
+        ls -la dist/
+    
+    # Step 6: Generate semantic version tag based on commit count and date
+    - name: Generate semantic version tag
+      id: version
+      run: |
+        # Get the number of commits to use as patch version
+        COMMIT_COUNT=$(git rev-list --count HEAD)
+        
+        # Create semantic version (using commit count as patch, starting from v1.0.x)
+        VERSION="v1.0.${COMMIT_COUNT}"
+        
+        echo "Generated version: $VERSION"
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+    
+    # Step 7: Attest artifacts using SLSA (Software Supply Chain Security)
+    - name: Attest build artifacts
+      uses: actions/attest-build-provenance@v1
+      with:
+        subject-path: 'dist/*'
+    
+    # Step 8: Create GitHub release with tagged version
+    - name: Create release tag
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git tag -a ${{ env.VERSION }} -m "Release ${{ env.VERSION }} - Automated build from main branch"
+        git push origin ${{ env.VERSION }}
+    
+    # Step 9: Create GitHub release with build artifacts
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ env.VERSION }}
+        release_name: "Mage vs. Orc King ${{ env.VERSION }}"
+        body: |
+          ## Mage vs. Orc King - Release ${{ env.VERSION }}
+          
+          Automated release from main branch build.
+          
+          ### 🎮 What's Included
+          - `mage_vs_orc.py` - Main game file
+          - `mage-vs-orc` - Standalone executable script
+          - `mage-vs-orc-game.zip` - Complete game package
+          
+          ### 🚀 How to Play
+          Download and run:
+          ```bash
+          python3 mage_vs_orc.py
+          ```
+          
+          Or use the standalone executable:
+          ```bash
+          chmod +x mage-vs-orc
+          ./mage-vs-orc
+          ```
+          
+          ### 🔒 Security
+          All artifacts in this release have been attested using SLSA (Software Supply Chain Security) for build provenance verification.
+          
+          ### 📊 Build Info
+          - **Commit**: ${{ github.sha }}
+          - **Workflow**: ${{ github.workflow }}
+          - **Build Date**: ${{ github.event.head_commit.timestamp }}
+        draft: false
+        prerelease: false
+    
+    # Step 10: Upload build artifacts to release
+    - name: Upload game file to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/mage_vs_orc.py
+        asset_name: mage_vs_orc.py
+        asset_content_type: text/x-python
+    
+    - name: Upload executable to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/mage-vs-orc
+        asset_name: mage-vs-orc
+        asset_content_type: application/octet-stream
+    
+    - name: Upload game package to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/mage-vs-orc-game.zip
+        asset_name: mage-vs-orc-game.zip
+        asset_content_type: application/zip

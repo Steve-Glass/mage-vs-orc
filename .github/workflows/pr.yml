@@ -1,0 +1,38 @@
+name: Pull Request Tests
+
+# Trigger: Runs on every pull request targeting main branch
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # Step 1: Checkout the repository code
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    # Step 2: Set up Python environment with version 3.11
+    - name: Set up Python environment
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    # Step 3: Install dependencies from requirements.txt
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    # Step 4: Run tests using pytest
+    - name: Run tests using pytest
+      run: |
+        python -m pytest test_mage_vs_orc.py -v --tb=short
+    
+    # Step 5: Test game import and basic functionality
+    - name: Test game functionality
+      run: |
+        python -c "import mage_vs_orc; print('✅ Game module imports successfully')"
+        python -c "import mage_vs_orc; game = mage_vs_orc.Game(); print('✅ Game initializes successfully')"

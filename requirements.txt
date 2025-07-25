@@ -1,0 +1,5 @@
+# Test dependencies
+pytest>=7.0.0
+
+# Build dependencies (for distribution)
+build>=0.10.0
