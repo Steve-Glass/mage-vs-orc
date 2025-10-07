@@ -81,7 +81,7 @@ class OrcKing(Character):
     def __init__(self):
         # Define the Orc King's unique move set
         move_set = [
-            Move("Axe Swing", 28, "A devastating swing of the battle axe"),
+            Move("Axe Swing", 35, "A devastating swing of the battle axe"),
             Move("Battle Roar", 15, "A terrifying roar that rattles enemies", special_effect="intimidate"),
             Move("Charge", 22, "Rushes forward with crushing force"),
             Move("Slam", 26, "Brings down both fists with tremendous power")
